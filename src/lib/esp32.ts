@@ -1,4 +1,4 @@
-import type { AppSettings } from '@/types/reminder';
+import type { AppSettings, Reminder } from '@/types/reminder';
 
 export const sendCompartmentCommand = async (
   settings: AppSettings,
@@ -11,13 +11,34 @@ export const sendCompartmentCommand = async (
     
     const response = await fetch(url, {
       method: 'GET',
-      mode: 'no-cors', // ESP32 might not have CORS enabled
+      mode: 'no-cors',
     });
     
     console.log('ESP32 response:', response.status);
     return true;
   } catch (error) {
     console.error('Error communicating with ESP32:', error);
+    return false;
+  }
+};
+
+export const updateDisplayInfo = async (
+  settings: AppSettings,
+  reminder: Reminder
+): Promise<boolean> => {
+  try {
+    const url = `http://${settings.esp32Ip}/update?compartment=${reminder.compartment}&name=${encodeURIComponent(reminder.pillName)}&dosage=${encodeURIComponent(reminder.dosage)}&time=${encodeURIComponent(reminder.time)}`;
+    console.log('Updating ESP32 display:', url);
+    
+    const response = await fetch(url, {
+      method: 'GET',
+      mode: 'no-cors',
+    });
+    
+    console.log('ESP32 display updated:', response.status);
+    return true;
+  } catch (error) {
+    console.error('Error updating ESP32 display:', error);
     return false;
   }
 };

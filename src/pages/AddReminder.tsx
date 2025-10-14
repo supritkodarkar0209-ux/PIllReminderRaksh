@@ -7,8 +7,9 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card } from '@/components/ui/card';
 import TimePickerInput from '@/components/TimePickerInput';
-import { addReminder, updateReminder, getReminders, deleteReminder } from '@/lib/storage';
+import { addReminder, updateReminder, getReminders, deleteReminder, getSettings } from '@/lib/storage';
 import { scheduleReminderNotification, cancelReminderNotification } from '@/lib/notifications';
+import { updateDisplayInfo } from '@/lib/esp32';
 import type { Reminder } from '@/types/reminder';
 import { useToast } from '@/hooks/use-toast';
 
@@ -67,6 +68,12 @@ const AddReminder = () => {
         await scheduleReminderNotification(updatedReminder);
       }
       
+      // Update ESP32 display
+      const settings = await getSettings();
+      if (settings.esp32Ip && updatedReminder) {
+        await updateDisplayInfo(settings, updatedReminder);
+      }
+      
       toast({
         title: "Reminder updated",
         description: "Your reminder has been updated successfully",
@@ -81,6 +88,12 @@ const AddReminder = () => {
       
       await addReminder(reminder);
       await scheduleReminderNotification(reminder);
+      
+      // Update ESP32 display
+      const settings = await getSettings();
+      if (settings.esp32Ip) {
+        await updateDisplayInfo(settings, reminder);
+      }
       
       toast({
         title: "Reminder added",
