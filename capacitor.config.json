@@ -1,0 +1,13 @@
+{
+  "appId": "com.lovable.automatedpillbox",
+  "appName": "Automated Pillbox",
+  "webDir": "dist",
+  "server": {
+    "cleartext": true,
+    "androidScheme": "https"
+  },
+  "android": {
+    "allowMixedContent": true
+  }
+}
+
