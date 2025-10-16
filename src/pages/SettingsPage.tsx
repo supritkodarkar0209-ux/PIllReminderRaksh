@@ -53,13 +53,13 @@ const SettingsPage = () => {
     setTesting(false);
   };
 
-  const handleTestCompartment = async (compartment: number) => {
-    const success = await sendCompartmentCommand(settings, compartment, 'ON');
+  const handleTestCompartment = async (compartmentType: 'A' | 'B' | 'C' | 'D') => {
+    const success = await sendCompartmentCommand(settings, compartmentType, 'ON');
     
     toast({
       title: success ? "Command sent" : "Command failed",
       description: success 
-        ? `Triggered compartment ${compartment}` 
+        ? `Triggered compartment ${compartmentType}` 
         : "Could not send command to ESP32",
       variant: success ? "default" : "destructive",
     });
@@ -67,7 +67,7 @@ const SettingsPage = () => {
     // Auto turn off after 3 seconds
     if (success) {
       setTimeout(async () => {
-        await sendCompartmentCommand(settings, compartment, 'TAKEN');
+        await sendCompartmentCommand(settings, compartmentType, 'TAKEN');
       }, 3000);
     }
   };
@@ -168,14 +168,14 @@ const SettingsPage = () => {
           </p>
 
           <div className="grid grid-cols-2 gap-3">
-            {[1, 2, 3, 4].map((num) => (
+            {["A", "B", "C", "D"].map((type) => (
               <Button
-                key={num}
+                key={type}
                 variant="outline"
-                onClick={() => handleTestCompartment(num)}
+                onClick={() => handleTestCompartment(type as 'A' | 'B' | 'C' | 'D')}
                 className="h-16"
               >
-                Compartment {num}
+                Compartment {type}
               </Button>
             ))}
           </div>

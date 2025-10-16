@@ -10,43 +10,25 @@ interface TimePickerInputProps {
 }
 
 const TimePickerInput = ({ value, onChange, label = "Reminder Time" }: TimePickerInputProps) => {
-  const [hour, setHour] = useState<string>('12');
+  const [hour, setHour] = useState<string>('00');
   const [minute, setMinute] = useState<string>('00');
-  const [period, setPeriod] = useState<'AM' | 'PM'>('AM');
 
   // Initialize from value
   useEffect(() => {
-    if (value) {
-      if (value.includes('AM') || value.includes('PM')) {
-        // Parse 12-hour format
-        const match = value.match(/(\d+):(\d+)\s*(AM|PM)/i);
-        if (match) {
-          setHour(match[1].padStart(2, '0'));
-          setMinute(match[2].padStart(2, '0'));
-          setPeriod(match[3].toUpperCase() as 'AM' | 'PM');
-        }
-      } else if (value.includes(':')) {
-        // Parse 24-hour format and convert to 12-hour
-        const [h, m] = value.split(':');
-        const hour24 = parseInt(h);
-        const hour12 = hour24 === 0 ? 12 : hour24 > 12 ? hour24 - 12 : hour24;
-        setHour(hour12.toString().padStart(2, '0'));
-        setMinute(m.padStart(2, '0'));
-        setPeriod(hour24 >= 12 ? 'PM' : 'AM');
-      }
+    if (value && value.includes(':')) {
+      const [h, m] = value.split(':');
+      setHour(h.padStart(2, '0'));
+      setMinute(m.padStart(2, '0'));
     }
   }, []);
 
   // Update parent whenever time changes
   useEffect(() => {
-    const timeString = `${hour}:${minute} ${period}`;
+    const timeString = `${hour}:${minute}`;
     onChange(timeString);
-  }, [hour, minute, period, onChange]);
+  }, [hour, minute, onChange]);
 
-  const hours = Array.from({ length: 12 }, (_, i) => {
-    const h = i + 1;
-    return h.toString().padStart(2, '0');
-  });
+  const hours = Array.from({ length: 24 }, (_, i) => i.toString().padStart(2, '0'));
 
   const minutes = Array.from({ length: 60 }, (_, i) => i.toString().padStart(2, '0'));
 
@@ -85,15 +67,7 @@ const TimePickerInput = ({ value, onChange, label = "Reminder Time" }: TimePicke
           </SelectContent>
         </Select>
 
-        <Select value={period} onValueChange={(v) => setPeriod(v as 'AM' | 'PM')}>
-          <SelectTrigger className="w-[100px]">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="AM">AM</SelectItem>
-            <SelectItem value="PM">PM</SelectItem>
-          </SelectContent>
-        </Select>
+        {/* 24-hour format: no AM/PM selector */}
       </div>
     </div>
   );

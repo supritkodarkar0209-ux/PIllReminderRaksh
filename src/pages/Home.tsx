@@ -7,7 +7,7 @@ import ConfirmationDialog from '@/components/ConfirmationDialog';
 import { Button } from '@/components/ui/button';
 import { getReminders, updateReminder, addDoseLog, deleteReminder } from '@/lib/storage';
 import { getSettings } from '@/lib/storage';
-import { sendCompartmentCommand } from '@/lib/esp32';
+import { sendCompartmentCommand, notifyTftPillTaken, updateDisplayInfo } from '@/lib/esp32';
 import { initializeNotifications, scheduleReminderNotification, cancelReminderNotification } from '@/lib/notifications';
 import type { Reminder, DoseLog } from '@/types/reminder';
 import { useToast } from '@/hooks/use-toast';
@@ -69,30 +69,47 @@ const Home = () => {
   };
 
   const simulateReminder = async (reminder: Reminder) => {
-    const settings = await getSettings();
-    await sendCompartmentCommand(settings, reminder.compartment, 'ON');
+    // Optimistic UI first
     setActiveReminder(reminder);
     setShowDialog(true);
+
+    // Fire-and-forget network in background
+    (async () => {
+      const settings = await getSettings();
+      await Promise.allSettled([
+        sendCompartmentCommand(settings, reminder.compartmentType, 'ON'),
+        updateDisplayInfo(settings, reminder),
+      ]);
+    })();
   };
 
-  const handleConfirmation = async (taken: boolean) => {
+  const handleConfirmation = async (taken: boolean, takenBy: 'user' | 'buzzer' = 'user') => {
     if (!activeReminder) return;
 
     const settings = await getSettings();
-    await sendCompartmentCommand(
-      settings,
-      activeReminder.compartment,
-      taken ? 'TAKEN' : 'MISSED'
-    );
+    // Fire network in background to avoid UI delay
+    (async () => {
+      await sendCompartmentCommand(
+        settings,
+        activeReminder.compartmentType,
+        taken ? 'TAKEN' : 'MISSED'
+      );
+      if (taken) {
+        await notifyTftPillTaken(settings, activeReminder);
+      }
+    })();
 
     const log: DoseLog = {
       id: `log_${Date.now()}`,
       reminderId: activeReminder.id,
       pillName: activeReminder.pillName,
-      compartment: activeReminder.compartment,
+      tabletQuantity: activeReminder.tabletQuantity,
+      compartmentType: activeReminder.compartmentType,
+      foodTiming: activeReminder.foodTiming,
       scheduledTime: activeReminder.time,
       takenTime: Date.now(),
       status: taken ? 'taken' : 'missed',
+      takenBy: takenBy,
     };
 
     await addDoseLog(log);
@@ -100,7 +117,7 @@ const Home = () => {
     toast({
       title: taken ? "Marked as taken" : "Marked as missed",
       description: taken 
-        ? "Great job taking your medicine!" 
+        ? (takenBy === 'buzzer' ? "Pill has been taken via buzzer!" : "Great job taking your medicine!") 
         : "Don't forget next time",
     });
 

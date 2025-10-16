@@ -21,9 +21,10 @@ const AddReminder = () => {
 
   const [formData, setFormData] = useState({
     pillName: '',
-    dosage: '',
-    compartment: 1,
+    tabletQuantity: '' as number | '' ,
+    compartmentType: 'A' as 'A' | 'B' | 'C' | 'D',
     time: '',
+    foodTiming: 'anytime' as 'before' | 'after' | 'anytime',
   });
 
   useEffect(() => {
@@ -39,9 +40,10 @@ const AddReminder = () => {
     if (reminder) {
       setFormData({
         pillName: reminder.pillName,
-        dosage: reminder.dosage,
-        compartment: reminder.compartment,
+        tabletQuantity: reminder.tabletQuantity,
+        compartmentType: reminder.compartmentType,
         time: reminder.time,
+        foodTiming: reminder.foodTiming,
       });
     }
   };
@@ -49,7 +51,7 @@ const AddReminder = () => {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    if (!formData.pillName || !formData.dosage || !formData.time) {
+    if (!formData.pillName || !formData.time) {
       toast({
         title: "Missing fields",
         description: "Please fill in all required fields",
@@ -59,7 +61,11 @@ const AddReminder = () => {
     }
 
     if (isEdit && id) {
-      await updateReminder(id, formData);
+      const normalized = {
+        ...formData,
+        tabletQuantity: formData.tabletQuantity === '' ? 0 : formData.tabletQuantity,
+      };
+      await updateReminder(id, normalized as any);
       await cancelReminderNotification(id);
       
       const reminders = await getReminders();
@@ -82,6 +88,7 @@ const AddReminder = () => {
       const reminder: Reminder = {
         id: `reminder_${Date.now()}`,
         ...formData,
+        tabletQuantity: formData.tabletQuantity === '' ? 0 : (formData.tabletQuantity as number),
         enabled: true,
         createdAt: Date.now(),
       };
@@ -154,31 +161,62 @@ const AddReminder = () => {
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="dosage">Dosage</Label>
+              <Label htmlFor="tabletQuantity">Tablet Quantity</Label>
               <Input
-                id="dosage"
-                value={formData.dosage}
-                onChange={(e) => setFormData({ ...formData, dosage: e.target.value })}
-                placeholder="e.g., 500mg, 2 tablets"
-                required
+                id="tabletQuantity"
+                type="number"
+                min={0}
+                step={1}
+                value={formData.tabletQuantity}
+                onChange={(e) => {
+                  const raw = e.target.value;
+                  if (raw === '') {
+                    setFormData({ ...formData, tabletQuantity: '' });
+                    return;
+                  }
+                  const val = parseInt(raw, 10);
+                  setFormData({ ...formData, tabletQuantity: isNaN(val) || val < 0 ? '' : val });
+                }}
+                placeholder="Enter number of tablets (optional)"
               />
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="compartment" className="flex items-center gap-2">
+              <Label htmlFor="compartmentType" className="flex items-center gap-2">
                 <Box className="h-4 w-4" />
-                Compartment Number
+                Compartment Type
               </Label>
               <div className="grid grid-cols-4 gap-2">
-                {[1, 2, 3, 4].map((num) => (
+                {['A', 'B', 'C', 'D'].map((type) => (
                   <Button
-                    key={num}
+                    key={type}
                     type="button"
-                    variant={formData.compartment === num ? "default" : "outline"}
-                    onClick={() => setFormData({ ...formData, compartment: num })}
+                    variant={formData.compartmentType === type ? "default" : "outline"}
+                    onClick={() => setFormData({ ...formData, compartmentType: type as 'A' | 'B' | 'C' | 'D' })}
                     className="h-12"
                   >
-                    {num}
+                    {type}
+                  </Button>
+                ))}
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="foodTiming">Food Timing</Label>
+              <div className="grid grid-cols-3 gap-2">
+                {[
+                  { value: 'before', label: 'Before Food' },
+                  { value: 'after', label: 'After Food' },
+                  { value: 'anytime', label: 'Anytime' }
+                ].map((timing) => (
+                  <Button
+                    key={timing.value}
+                    type="button"
+                    variant={formData.foodTiming === timing.value ? "default" : "outline"}
+                    onClick={() => setFormData({ ...formData, foodTiming: timing.value as 'before' | 'after' | 'anytime' })}
+                    className="h-12 text-xs"
+                  >
+                    {timing.label}
                   </Button>
                 ))}
               </div>

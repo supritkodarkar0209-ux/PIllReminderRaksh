@@ -1,17 +1,33 @@
 import type { AppSettings, Reminder } from '@/types/reminder';
 
+const fetchWithTimeout = async (
+  input: RequestInfo | URL,
+  init: RequestInit & { timeoutMs?: number } = {}
+) => {
+  const { timeoutMs = 1500, ...rest } = init;
+  const controller = new AbortController();
+  const id = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    return await fetch(input, { ...rest, signal: controller.signal });
+  } finally {
+    clearTimeout(id);
+  }
+};
+
 export const sendCompartmentCommand = async (
   settings: AppSettings,
-  compartment: number,
-  action: 'ON' | 'TAKEN' | 'MISSED'
+  compartmentType: 'A' | 'B' | 'C' | 'D',
+  action: 'ON' | 'TAKEN' | 'MISSED' | 'BUZZER'
 ): Promise<boolean> => {
   try {
-    const url = `http://${settings.esp32Ip}/compartment?num=${compartment}&action=${action}`;
+    const compartmentNum = compartmentType.charCodeAt(0) - 65 + 1; // A=1, B=2, C=3, D=4
+    const url = `http://${settings.esp32Ip}/compartment?type=${compartmentType}&num=${compartmentNum}&action=${action}`;
     console.log('Sending ESP32 command:', url);
     
-    const response = await fetch(url, {
+    const response = await fetchWithTimeout(url, {
       method: 'GET',
       mode: 'no-cors',
+      timeoutMs: 1500,
     });
     
     console.log('ESP32 response:', response.status);
@@ -27,28 +43,98 @@ export const updateDisplayInfo = async (
   reminder: Reminder
 ): Promise<boolean> => {
   try {
-    const url = `http://${settings.esp32Ip}/update?compartment=${reminder.compartment}&name=${encodeURIComponent(reminder.pillName)}&dosage=${encodeURIComponent(reminder.dosage)}&time=${encodeURIComponent(reminder.time)}`;
-    console.log('Updating ESP32 display:', url);
+    const tablets = typeof (reminder as any).tabletQuantity === 'number' ? (reminder as any).tabletQuantity : 0;
+    const url = `http://${settings.esp32Ip}/tft/reminder?compartment=${reminder.compartmentType}&name=${encodeURIComponent(reminder.pillName)}&tablets=${tablets}&timing=${reminder.foodTiming}&time=${encodeURIComponent(reminder.time)}`;
+    console.log('Updating ESP32 TFT display:', url);
+    
+    const response = await fetchWithTimeout(url, {
+      method: 'GET',
+      mode: 'no-cors',
+      timeoutMs: 1500,
+    });
+    
+    console.log('ESP32 TFT display updated:', response.status);
+    return true;
+  } catch (error) {
+    console.error('Error updating ESP32 TFT display:', error);
+    return false;
+  }
+};
+
+export const sendBuzzerCommand = async (
+  settings: AppSettings,
+  compartmentType: 'A' | 'B' | 'C' | 'D'
+): Promise<boolean> => {
+  try {
+    const url = `http://${settings.esp32Ip}/buzzer?compartment=${compartmentType}&status=taken`;
+    console.log('Sending buzzer command:', url);
+    
+    const response = await fetchWithTimeout(url, {
+      method: 'GET',
+      mode: 'no-cors',
+      timeoutMs: 1500,
+    });
+    
+    console.log('Buzzer command sent:', response.status);
+    return true;
+  } catch (error) {
+    console.error('Error sending buzzer command:', error);
+    return false;
+  }
+};
+
+export const notifyTftPillTaken = async (
+  settings: AppSettings,
+  reminder: Reminder
+): Promise<boolean> => {
+  try {
+    const tablets = typeof (reminder as any).tabletQuantity === 'number' ? (reminder as any).tabletQuantity : 0;
+    const url = `http://${settings.esp32Ip}/tft/taken?compartment=${reminder.compartmentType}&name=${encodeURIComponent(reminder.pillName)}&tablets=${tablets}&timing=${reminder.foodTiming}&time=${encodeURIComponent(reminder.time)}&message=${encodeURIComponent('Pill has been taken')}`;
+    console.log('Notify TFT pill taken:', url);
     
     const response = await fetch(url, {
       method: 'GET',
       mode: 'no-cors',
     });
     
-    console.log('ESP32 display updated:', response.status);
+    console.log('TFT pill taken notification sent:', response.status);
     return true;
   } catch (error) {
-    console.error('Error updating ESP32 display:', error);
+    console.error('Error notifying TFT pill taken:', error);
     return false;
+  }
+};
+
+export const checkBuzzerStatus = async (
+  settings: AppSettings
+): Promise<{compartmentType: 'A' | 'B' | 'C' | 'D' | null, status: 'taken' | 'idle'}> => {
+  try {
+    const url = `http://${settings.esp32Ip}/buzzer/status`;
+    const response = await fetchWithTimeout(url, {
+      method: 'GET',
+      mode: 'cors',
+      timeoutMs: 1500,
+    });
+    
+    if (response.ok) {
+      const data = await response.json();
+      return data;
+    }
+    
+    return { compartmentType: null, status: 'idle' };
+  } catch (error) {
+    console.error('Error checking buzzer status:', error);
+    return { compartmentType: null, status: 'idle' };
   }
 };
 
 export const testConnection = async (ip: string): Promise<boolean> => {
   try {
     const url = `http://${ip}/status`;
-    const response = await fetch(url, {
+    const response = await fetchWithTimeout(url, {
       method: 'GET',
       mode: 'no-cors',
+      timeoutMs: 1500,
     });
     return true;
   } catch (error) {
@@ -56,3 +142,4 @@ export const testConnection = async (ip: string): Promise<boolean> => {
     return false;
   }
 };
+

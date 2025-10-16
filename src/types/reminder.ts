@@ -1,9 +1,10 @@
 export interface Reminder {
   id: string;
   pillName: string;
-  dosage: string;
-  compartment: number;
+  tabletQuantity?: number;
+  compartmentType: 'A' | 'B' | 'C' | 'D';
   time: string;
+  foodTiming: 'before' | 'after' | 'anytime';
   enabled: boolean;
   createdAt: number;
 }
@@ -12,10 +13,13 @@ export interface DoseLog {
   id: string;
   reminderId: string;
   pillName: string;
-  compartment: number;
+  tabletQuantity?: number;
+  compartmentType: 'A' | 'B' | 'C' | 'D';
+  foodTiming: 'before' | 'after' | 'anytime';
   scheduledTime: string;
   takenTime: number;
   status: 'taken' | 'missed';
+  takenBy: 'user' | 'buzzer';
 }
 
 export interface AppSettings {

@@ -51,27 +51,8 @@ export const scheduleReminderNotification = async (reminder: Reminder) => {
     // Parse the time (supports both 24hr format and with AM/PM)
     let hours: number, minutes: number;
     
-    if (reminder.time.includes('AM') || reminder.time.includes('PM')) {
-      // Parse 12-hour format with AM/PM
-      const timeMatch = reminder.time.match(/(\d+):(\d+)\s*(AM|PM)/i);
-      if (timeMatch) {
-        hours = parseInt(timeMatch[1]);
-        minutes = parseInt(timeMatch[2]);
-        const period = timeMatch[3].toUpperCase();
-        
-        // Convert to 24-hour format
-        if (period === 'PM' && hours !== 12) {
-          hours += 12;
-        } else if (period === 'AM' && hours === 12) {
-          hours = 0;
-        }
-      } else {
-        throw new Error('Invalid time format');
-      }
-    } else {
-      // Parse 24-hour format
-      [hours, minutes] = reminder.time.split(':').map(Number);
-    }
+    // Parse 24-hour format HH:mm
+    [hours, minutes] = reminder.time.split(':').map(Number);
     
     const now = new Date();
     const scheduledTime = new Date();
@@ -87,7 +68,7 @@ export const scheduleReminderNotification = async (reminder: Reminder) => {
         {
           id: parseInt(reminder.id.replace(/\D/g, '').slice(0, 9)),
           title: "It's Time to take a pill!",
-          body: `${reminder.pillName} - ${reminder.dosage}\nCompartment ${reminder.compartment}`,
+          body: `${reminder.pillName}${typeof reminder.tabletQuantity === 'number' && reminder.tabletQuantity > 0 ? ` - ${reminder.tabletQuantity} tablet${reminder.tabletQuantity > 1 ? 's' : ''}` : ''}\nCompartment ${reminder.compartmentType}\n${reminder.foodTiming === 'before' ? 'Take before food' : reminder.foodTiming === 'after' ? 'Take after food' : 'Take anytime'}`,
           schedule: { 
             at: scheduledTime, 
             repeats: true, 
@@ -100,7 +81,7 @@ export const scheduleReminderNotification = async (reminder: Reminder) => {
           channelId: 'medicine-reminders',
           extra: {
             reminderId: reminder.id,
-            compartment: reminder.compartment,
+            compartmentType: reminder.compartmentType,
           },
         },
       ],
