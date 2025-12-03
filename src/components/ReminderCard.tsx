@@ -31,7 +31,17 @@ const ReminderCard = ({ reminder, onToggle, onClick }: ReminderCardProps) => {
       <div className="flex items-start justify-between">
         <div className="flex-1">
           <div className="flex items-center gap-2 mb-2">
-            <div className={`w-3 h-3 rounded-full ${compartmentColors[reminder.compartmentType]}`} />
+            <div className="flex gap-1">
+              {Array.isArray(reminder.compartmentType) 
+                ? reminder.compartmentType.map((compartment) => (
+                    <div 
+                      key={compartment}
+                      className={`w-3 h-3 rounded-full ${compartmentColors[compartment]}`} 
+                    />
+                  ))
+                : <div className={`w-3 h-3 rounded-full ${compartmentColors[reminder.compartmentType]}`} />
+              }
+            </div>
             <h3 className="font-semibold text-foreground">{reminder.pillName}</h3>
           </div>
           
@@ -45,7 +55,13 @@ const ReminderCard = ({ reminder, onToggle, onClick }: ReminderCardProps) => {
             
             <div className="flex items-center gap-2 text-sm text-muted-foreground">
               <Box className="h-4 w-4" />
-              <span>Compartment {reminder.compartmentType}</span>
+              <span>
+                Compartment{Array.isArray(reminder.compartmentType) && reminder.compartmentType.length > 1 ? 's' : ''} {' '}
+                {Array.isArray(reminder.compartmentType) 
+                  ? reminder.compartmentType.join(', ')
+                  : reminder.compartmentType
+                }
+              </span>
             </div>
             
             <div className="flex items-center gap-2 text-sm text-muted-foreground">

@@ -32,7 +32,10 @@ const ConfirmationDialog = ({ open, reminder, onConfirm }: ConfirmationDialogPro
         const status = await checkBuzzerStatus(settings);
         setBuzzerStatus(status);
         
-        if (status.status === 'taken' && status.compartmentType === reminder.compartmentType) {
+        if (status.status === 'taken' && status.compartmentType && 
+            (Array.isArray(reminder.compartmentType) 
+              ? reminder.compartmentType.includes(status.compartmentType)
+              : reminder.compartmentType === status.compartmentType)) {
           onConfirm(true, 'buzzer');
         }
       };
@@ -59,7 +62,12 @@ const ConfirmationDialog = ({ open, reminder, onConfirm }: ConfirmationDialogPro
     
     try {
       const settings = await getSettings();
-      await sendBuzzerCommand(settings, reminder.compartmentType);
+      const compartments = Array.isArray(reminder.compartmentType) 
+        ? reminder.compartmentType 
+        : [reminder.compartmentType];
+      
+      // Send buzzer command for the first compartment (or all if needed)
+      await sendBuzzerCommand(settings, compartments[0]);
       onConfirm(true, 'buzzer');
     } finally {
       setIsProcessing(false);
@@ -84,7 +92,13 @@ const ConfirmationDialog = ({ open, reminder, onConfirm }: ConfirmationDialogPro
             {typeof reminder.tabletQuantity === 'number' && reminder.tabletQuantity > 0 && (
               <p className="text-sm">Tablets: {reminder.tabletQuantity}</p>
             )}
-            <p className="text-sm">Compartment: {reminder.compartmentType}</p>
+            <p className="text-sm">
+              Compartment{Array.isArray(reminder.compartmentType) && reminder.compartmentType.length > 1 ? 's' : ''}: {' '}
+              {Array.isArray(reminder.compartmentType) 
+                ? reminder.compartmentType.join(', ')
+                : reminder.compartmentType
+              }
+            </p>
             <p className="text-sm">Food Timing: {foodTimingLabels[reminder.foodTiming]}</p>
             <p className="text-base font-medium pt-2">Did you take your medicine?</p>
           </AlertDialogDescription>

@@ -6,6 +6,7 @@
 
 #include <WiFi.h>
 #include <WebServer.h>
+#include <ESPmDNS.h>
 #include <Adafruit_GFX.h>
 #include <Adafruit_ILI9341.h>
 
@@ -39,6 +40,54 @@ MedicineInfo medicines[4];
 
 WebServer server(80);
 
+// Device hostname for mDNS (access as http://pillbox-esp32.local)
+const char* deviceHostname = "pillbox-esp32";
+
+// Optional static IP configuration (set useStaticIP to true if needed)
+const bool useStaticIP = false; // default to DHCP for easiest mobile connection
+IPAddress local_IP(10, 80, 69, 27);
+IPAddress gateway(10, 80, 69, 1);
+IPAddress subnet(255, 255, 255, 0);
+IPAddress dns(8, 8, 8, 8);
+
+// Connect to WiFi with timeout and optional static IP
+bool connectWifi(unsigned long timeoutMs = 20000) {
+  if (useStaticIP) {
+    if (!WiFi.config(local_IP, gateway, subnet, dns)) {
+      Serial.println("WiFi.config failed (static IP)");
+    }
+  }
+  WiFi.mode(WIFI_STA);
+  WiFi.begin(ssid, password);
+
+  Serial.print("Connecting to WiFi");
+  unsigned long start = millis();
+  while (WiFi.status() != WL_CONNECTED && (millis() - start) < timeoutMs) {
+    delay(500);
+    Serial.print(".");
+  }
+  Serial.println();
+
+  if (WiFi.status() == WL_CONNECTED) {
+    Serial.print("WiFi Connected. IP: ");
+    Serial.println(WiFi.localIP());
+
+    // Start mDNS so phones can connect via name
+    if (MDNS.begin(deviceHostname)) {
+      MDNS.addService("http", "tcp", 80);
+      Serial.print("mDNS started: http://");
+      Serial.print(deviceHostname);
+      Serial.println(".local/");
+    } else {
+      Serial.println("mDNS start failed");
+    }
+    return true;
+  }
+
+  Serial.printf("WiFi connect failed, status=%d\n", WiFi.status());
+  return false;
+}
+
 void setup() {
   Serial.begin(115200);
   
@@ -65,30 +114,41 @@ void setup() {
     medicines[i].active = false;
   }
   
-  // Connect to WiFi
-  WiFi.begin(ssid, password);
+  // Connect to WiFi (with static IP if enabled). Fallback to AP if it fails.
   tft.setCursor(20, 40);
   tft.print("Connecting to WiFi");
+  bool connected = connectWifi();
   
-  while (WiFi.status() != WL_CONNECTED) {
-    delay(500);
-    Serial.print(".");
-    tft.print(".");
-  }
-  
-  Serial.println("\nWiFi Connected!");
-  Serial.print("IP Address: ");
-  Serial.println(WiFi.localIP());
-  
-  // Display WiFi info on TFT
   tft.fillScreen(ILI9341_BLACK);
   tft.setCursor(20, 10);
-  tft.setTextColor(ILI9341_GREEN);
-  tft.println("WiFi Connected!");
-  tft.setTextColor(ILI9341_WHITE);
-  tft.setCursor(20, 40);
-  tft.print("IP: ");
-  tft.println(WiFi.localIP());
+  if (connected) {
+    Serial.println("WiFi Connected!");
+    Serial.print("IP Address: ");
+    Serial.println(WiFi.localIP());
+    tft.setTextColor(ILI9341_GREEN);
+    tft.println("WiFi Connected!");
+    tft.setTextColor(ILI9341_WHITE);
+    tft.setCursor(20, 40);
+    tft.print("IP: ");
+    tft.println(WiFi.localIP());
+    tft.setCursor(20, 60);
+    tft.print("URL: http://");
+    tft.print(deviceHostname);
+    tft.println(".local/");
+  } else {
+    // Start configuration AP for recovery
+    WiFi.mode(WIFI_AP);
+    WiFi.softAP("Pillbox-Setup", "12345678");
+    IPAddress apIp = WiFi.softAPIP();
+    Serial.print("AP mode started. SSID: Pillbox-Setup, IP: ");
+    Serial.println(apIp);
+    tft.setTextColor(ILI9341_YELLOW);
+    tft.println("STA Failed. AP Ready");
+    tft.setTextColor(ILI9341_WHITE);
+    tft.setCursor(20, 40);
+    tft.print("AP IP: ");
+    tft.println(apIp);
+  }
   
   delay(2000);
   
@@ -162,7 +222,15 @@ void displayMedicineList() {
   tft.setTextColor(ILI9341_DARKGREY);
   tft.setCursor(10, 220);
   tft.print("IP: ");
-  tft.print(WiFi.localIP());
+  tft.print(WiFi.isConnected() ? WiFi.localIP() : WiFi.softAPIP());
+  
+  // Show mDNS hint when connected
+  if (WiFi.isConnected()) {
+    tft.setCursor(160, 220);
+    tft.print(" ");
+    tft.print(deviceHostname);
+    tft.print(".local");
+  }
 }
 
 void displayAlert(int compartment) {

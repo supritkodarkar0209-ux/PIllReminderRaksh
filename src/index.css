@@ -8,6 +8,7 @@ All colors MUST be HSL.
 
 @layer base {
   :root {
+    /* Light mode: revert to original light background */
     --background: 210 40% 98%;
     --foreground: 215 25% 15%;
 
@@ -17,7 +18,8 @@ All colors MUST be HSL.
     --popover: 0 0% 100%;
     --popover-foreground: 215 25% 15%;
 
-    --primary: 185 80% 42%;
+    /* Primary: soft blue */
+    --primary: 220 80% 56%;
     --primary-foreground: 0 0% 100%;
 
     --secondary: 210 40% 96%;
@@ -26,8 +28,9 @@ All colors MUST be HSL.
     --muted: 210 40% 96%;
     --muted-foreground: 215 15% 50%;
 
-    --accent: 185 65% 88%;
-    --accent-foreground: 185 80% 25%;
+    /* Accent: lavender */
+    --accent: 265 85% 88%;
+    --accent-foreground: 265 65% 32%;
 
     --success: 145 70% 45%;
     --success-foreground: 0 0% 100%;
@@ -71,7 +74,8 @@ All colors MUST be HSL.
     --popover: 215 28% 15%;
     --popover-foreground: 210 40% 98%;
 
-    --primary: 185 75% 50%;
+    /* Primary: brighter blue in dark mode */
+    --primary: 220 85% 62%;
     --primary-foreground: 0 0% 100%;
 
     --secondary: 215 25% 20%;
@@ -80,8 +84,9 @@ All colors MUST be HSL.
     --muted: 215 25% 20%;
     --muted-foreground: 215 20% 65%;
 
-    --accent: 185 45% 25%;
-    --accent-foreground: 185 65% 88%;
+    /* Accent: deeper lavender in dark mode */
+    --accent: 265 45% 40%;
+    --accent-foreground: 265 85% 90%;
 
     --success: 145 65% 50%;
     --success-foreground: 0 0% 100%;

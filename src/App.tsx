@@ -11,6 +11,7 @@ const AddReminder = lazy(() => import("./pages/AddReminder"));
 const HistoryPage = lazy(() => import("./pages/HistoryPage"));
 const SettingsPage = lazy(() => import("./pages/SettingsPage"));
 const NotFound = lazy(() => import("./pages/NotFound"));
+const ChatbotPage = lazy(() => import("./pages/ChatbotPage"));
 
 const queryClient = new QueryClient();
 
@@ -26,6 +27,7 @@ const App = () => (
             <Route path="/add" element={<AddReminder />} />
             <Route path="/edit/:id" element={<AddReminder />} />
             <Route path="/history" element={<HistoryPage />} />
+            <Route path="/assistant" element={<ChatbotPage />} />
             <Route path="/settings" element={<SettingsPage />} />
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
             <Route path="*" element={<NotFound />} />

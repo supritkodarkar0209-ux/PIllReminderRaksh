@@ -8,6 +8,7 @@ import { Card } from '@/components/ui/card';
 import { Switch } from '@/components/ui/switch';
 import { getSettings, saveSettings } from '@/lib/storage';
 import { testConnection, sendCompartmentCommand } from '@/lib/esp32';
+import { scheduleTestNotification } from '@/lib/notifications';
 import type { AppSettings } from '@/types/reminder';
 import { useToast } from '@/hooks/use-toast';
 
@@ -31,6 +32,19 @@ const SettingsPage = () => {
   };
 
   const handleSave = async () => {
+    // Basic IP address validation to avoid invalid / unsafe values
+    const ip = settings.esp32Ip.trim();
+    const ipRegex = /^(?:\d{1,3}\.){3}\d{1,3}$/;
+    if (!ipRegex.test(ip)) {
+      toast({
+        title: "Invalid IP address",
+        description: "Please enter a valid IPv4 address like 192.168.1.100",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setSettings({ ...settings, esp32Ip: ip });
     await saveSettings(settings);
     toast({
       title: "Settings saved",
@@ -153,6 +167,28 @@ const SettingsPage = () => {
                   setSettings({ ...settings, vibration: checked })
                 }
               />
+            </div>
+
+            <div className="flex items-center justify-between pt-2 border-t border-border">
+              <div>
+                <Label>Test Notification</Label>
+                <p className="text-xs text-muted-foreground">
+                  Send a test reminder in about 10 seconds to verify timing
+                </p>
+              </div>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={async () => {
+                  await scheduleTestNotification();
+                  toast({
+                    title: "Test scheduled",
+                    description: "You should receive a test notification in about 10 seconds.",
+                  });
+                }}
+              >
+                Send Test
+              </Button>
             </div>
           </div>
         </Card>

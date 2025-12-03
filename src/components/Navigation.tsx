@@ -1,4 +1,4 @@
-import { Home, Plus, History, Settings } from 'lucide-react';
+import { Home, Plus, History, Settings, MessageCircle } from 'lucide-react';
 import { Link, useLocation } from 'react-router-dom';
 
 const Navigation = () => {
@@ -8,6 +8,7 @@ const Navigation = () => {
     { path: '/', icon: Home, label: 'Home' },
     { path: '/add', icon: Plus, label: 'Add' },
     { path: '/history', icon: History, label: 'History' },
+    { path: '/assistant', icon: MessageCircle, label: 'Assistant' },
     { path: '/settings', icon: Settings, label: 'Settings' },
   ];
 

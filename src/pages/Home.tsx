@@ -7,7 +7,7 @@ import ConfirmationDialog from '@/components/ConfirmationDialog';
 import { Button } from '@/components/ui/button';
 import { getReminders, updateReminder, addDoseLog, deleteReminder } from '@/lib/storage';
 import { getSettings } from '@/lib/storage';
-import { sendCompartmentCommand, notifyTftPillTaken, updateDisplayInfo } from '@/lib/esp32';
+import { sendCompartmentCommand, sendMultipleCompartmentCommand, notifyTftPillTaken, updateDisplayInfo } from '@/lib/esp32';
 import { initializeNotifications, scheduleReminderNotification, cancelReminderNotification } from '@/lib/notifications';
 import type { Reminder, DoseLog } from '@/types/reminder';
 import { useToast } from '@/hooks/use-toast';
@@ -76,8 +76,12 @@ const Home = () => {
     // Fire-and-forget network in background
     (async () => {
       const settings = await getSettings();
+      const compartments = Array.isArray(reminder.compartmentType) 
+        ? reminder.compartmentType 
+        : [reminder.compartmentType];
+      
       await Promise.allSettled([
-        sendCompartmentCommand(settings, reminder.compartmentType, 'ON'),
+        sendMultipleCompartmentCommand(settings, compartments, 'ON'),
         updateDisplayInfo(settings, reminder),
       ]);
     })();
@@ -89,9 +93,13 @@ const Home = () => {
     const settings = await getSettings();
     // Fire network in background to avoid UI delay
     (async () => {
-      await sendCompartmentCommand(
+      const compartments = Array.isArray(activeReminder.compartmentType) 
+        ? activeReminder.compartmentType 
+        : [activeReminder.compartmentType];
+      
+      await sendMultipleCompartmentCommand(
         settings,
-        activeReminder.compartmentType,
+        compartments,
         taken ? 'TAKEN' : 'MISSED'
       );
       if (taken) {

@@ -49,7 +49,13 @@ const DoseLogCard = ({ log }: DoseLogCardProps) => {
             
             <div className="flex items-center gap-2 text-sm text-muted-foreground">
               <Box className="h-3 w-3" />
-              <span>Compartment {log.compartmentType}</span>
+              <span>
+                Compartment{Array.isArray(log.compartmentType) && log.compartmentType.length > 1 ? 's' : ''} {' '}
+                {Array.isArray(log.compartmentType) 
+                  ? log.compartmentType.join(', ')
+                  : log.compartmentType
+                }
+              </span>
             </div>
             
             <div className="flex items-center gap-2 text-sm text-muted-foreground">

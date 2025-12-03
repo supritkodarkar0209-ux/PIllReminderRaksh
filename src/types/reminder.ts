@@ -2,7 +2,7 @@ export interface Reminder {
   id: string;
   pillName: string;
   tabletQuantity?: number;
-  compartmentType: 'A' | 'B' | 'C' | 'D';
+  compartmentType: ('A' | 'B' | 'C' | 'D')[];
   time: string;
   foodTiming: 'before' | 'after' | 'anytime';
   enabled: boolean;
@@ -14,7 +14,7 @@ export interface DoseLog {
   reminderId: string;
   pillName: string;
   tabletQuantity?: number;
-  compartmentType: 'A' | 'B' | 'C' | 'D';
+  compartmentType: ('A' | 'B' | 'C' | 'D')[];
   foodTiming: 'before' | 'after' | 'anytime';
   scheduledTime: string;
   takenTime: number;

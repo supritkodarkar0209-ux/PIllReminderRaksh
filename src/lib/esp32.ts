@@ -38,13 +38,35 @@ export const sendCompartmentCommand = async (
   }
 };
 
+export const sendMultipleCompartmentCommand = async (
+  settings: AppSettings,
+  compartmentTypes: ('A' | 'B' | 'C' | 'D')[],
+  action: 'ON' | 'TAKEN' | 'MISSED' | 'BUZZER'
+): Promise<boolean> => {
+  try {
+    const promises = compartmentTypes.map(compartmentType => 
+      sendCompartmentCommand(settings, compartmentType, action)
+    );
+    
+    const results = await Promise.all(promises);
+    return results.every(result => result);
+  } catch (error) {
+    console.error('Error sending multiple compartment commands:', error);
+    return false;
+  }
+};
+
 export const updateDisplayInfo = async (
   settings: AppSettings,
   reminder: Reminder
 ): Promise<boolean> => {
   try {
     const tablets = typeof (reminder as any).tabletQuantity === 'number' ? (reminder as any).tabletQuantity : 0;
-    const url = `http://${settings.esp32Ip}/tft/reminder?compartment=${reminder.compartmentType}&name=${encodeURIComponent(reminder.pillName)}&tablets=${tablets}&timing=${reminder.foodTiming}&time=${encodeURIComponent(reminder.time)}`;
+    const compartments = Array.isArray(reminder.compartmentType) 
+      ? reminder.compartmentType.join(',') 
+      : reminder.compartmentType;
+    
+    const url = `http://${settings.esp32Ip}/tft/reminder?compartment=${compartments}&name=${encodeURIComponent(reminder.pillName)}&tablets=${tablets}&timing=${reminder.foodTiming}&time=${encodeURIComponent(reminder.time)}`;
     console.log('Updating ESP32 TFT display:', url);
     
     const response = await fetchWithTimeout(url, {
@@ -83,13 +105,34 @@ export const sendBuzzerCommand = async (
   }
 };
 
+export const sendMultipleBuzzerCommand = async (
+  settings: AppSettings,
+  compartmentTypes: ('A' | 'B' | 'C' | 'D')[]
+): Promise<boolean> => {
+  try {
+    const promises = compartmentTypes.map(compartmentType => 
+      sendBuzzerCommand(settings, compartmentType)
+    );
+    
+    const results = await Promise.all(promises);
+    return results.every(result => result);
+  } catch (error) {
+    console.error('Error sending multiple buzzer commands:', error);
+    return false;
+  }
+};
+
 export const notifyTftPillTaken = async (
   settings: AppSettings,
   reminder: Reminder
 ): Promise<boolean> => {
   try {
     const tablets = typeof (reminder as any).tabletQuantity === 'number' ? (reminder as any).tabletQuantity : 0;
-    const url = `http://${settings.esp32Ip}/tft/taken?compartment=${reminder.compartmentType}&name=${encodeURIComponent(reminder.pillName)}&tablets=${tablets}&timing=${reminder.foodTiming}&time=${encodeURIComponent(reminder.time)}&message=${encodeURIComponent('Pill has been taken')}`;
+    const compartments = Array.isArray(reminder.compartmentType) 
+      ? reminder.compartmentType.join(',') 
+      : reminder.compartmentType;
+    
+    const url = `http://${settings.esp32Ip}/tft/taken?compartment=${compartments}&name=${encodeURIComponent(reminder.pillName)}&tablets=${tablets}&timing=${reminder.foodTiming}&time=${encodeURIComponent(reminder.time)}&message=${encodeURIComponent('Pill has been taken')}`;
     console.log('Notify TFT pill taken:', url);
     
     const response = await fetch(url, {

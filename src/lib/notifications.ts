@@ -39,6 +39,44 @@ export const initializeNotifications = async () => {
   }
 };
 
+export const scheduleTestNotification = async () => {
+  try {
+    const platform = (window as any).Capacitor?.getPlatform();
+    if (!platform || platform === 'web') {
+      console.log('Test notifications are only available on native mobile devices');
+      return;
+    }
+
+    const permission = await LocalNotifications.checkPermissions();
+    if (permission.display !== 'granted') {
+      console.warn('Notification permission not granted for test notification');
+      return;
+    }
+
+    const at = new Date(Date.now() + 10 * 1000);
+
+    await LocalNotifications.schedule({
+      notifications: [
+        {
+          id: Math.floor(Math.random() * 1_000_000),
+          title: 'Pillbox test notification',
+          body: 'This is a quick test to verify that notifications arrive on time.',
+          schedule: {
+            at,
+            allowWhileIdle: true,
+          },
+          sound: 'default',
+          channelId: 'medicine-reminders',
+        },
+      ],
+    });
+
+    console.log('Test notification scheduled for:', at);
+  } catch (error) {
+    console.error('Error scheduling test notification:', error);
+  }
+};
+
 export const scheduleReminderNotification = async (reminder: Reminder) => {
   try {
     // Check if running on native platform
@@ -48,32 +86,19 @@ export const scheduleReminderNotification = async (reminder: Reminder) => {
       return;
     }
 
-    // Parse the time (supports both 24hr format and with AM/PM)
-    let hours: number, minutes: number;
-    
     // Parse 24-hour format HH:mm
-    [hours, minutes] = reminder.time.split(':').map(Number);
-    
-    const now = new Date();
-    const scheduledTime = new Date();
-    scheduledTime.setHours(hours, minutes, 0, 0);
-    
-    // If time has passed today, schedule for tomorrow
-    if (scheduledTime.getTime() <= now.getTime()) {
-      scheduledTime.setDate(scheduledTime.getDate() + 1);
-    }
+    const [hours, minutes] = reminder.time.split(':').map(Number);
 
     await LocalNotifications.schedule({
       notifications: [
         {
           id: parseInt(reminder.id.replace(/\D/g, '').slice(0, 9)),
           title: "It's Time to take a pill!",
-          body: `${reminder.pillName}${typeof reminder.tabletQuantity === 'number' && reminder.tabletQuantity > 0 ? ` - ${reminder.tabletQuantity} tablet${reminder.tabletQuantity > 1 ? 's' : ''}` : ''}\nCompartment ${reminder.compartmentType}\n${reminder.foodTiming === 'before' ? 'Take before food' : reminder.foodTiming === 'after' ? 'Take after food' : 'Take anytime'}`,
-          schedule: { 
-            at: scheduledTime, 
-            repeats: true, 
-            every: 'day',
-            allowWhileIdle: true // Important for Android 8-11
+          body: `${reminder.pillName}${typeof reminder.tabletQuantity === 'number' && reminder.tabletQuantity > 0 ? ` - ${reminder.tabletQuantity} tablet${reminder.tabletQuantity > 1 ? 's' : ''}` : ''}\nCompartment${Array.isArray(reminder.compartmentType) && reminder.compartmentType.length > 1 ? 's' : ''} ${Array.isArray(reminder.compartmentType) ? reminder.compartmentType.join(', ') : reminder.compartmentType}\n${reminder.foodTiming === 'before' ? 'Take before food' : reminder.foodTiming === 'after' ? 'Take after food' : 'Take anytime'}`,
+          schedule: {
+            on: { hour: hours, minute: minutes },
+            repeats: true,
+            allowWhileIdle: true, // Important for Android 8-11
           },
           sound: 'default',
           smallIcon: 'ic_stat_icon_config_sample',

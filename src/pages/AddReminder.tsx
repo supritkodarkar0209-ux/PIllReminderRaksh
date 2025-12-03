@@ -22,7 +22,7 @@ const AddReminder = () => {
   const [formData, setFormData] = useState({
     pillName: '',
     tabletQuantity: '' as number | '' ,
-    compartmentType: 'A' as 'A' | 'B' | 'C' | 'D',
+    compartmentType: ['A'] as ('A' | 'B' | 'C' | 'D')[],
     time: '',
     foodTiming: 'anytime' as 'before' | 'after' | 'anytime',
   });
@@ -51,10 +51,10 @@ const AddReminder = () => {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    if (!formData.pillName || !formData.time) {
+    if (!formData.pillName || !formData.time || formData.compartmentType.length === 0) {
       toast({
         title: "Missing fields",
-        description: "Please fill in all required fields",
+        description: "Please fill in all required fields and select at least one compartment",
         variant: "destructive",
       });
       return;
@@ -65,25 +65,37 @@ const AddReminder = () => {
         ...formData,
         tabletQuantity: formData.tabletQuantity === '' ? 0 : formData.tabletQuantity,
       };
+
+      // Update local storage first so Home can show the latest data
       await updateReminder(id, normalized as any);
-      await cancelReminderNotification(id);
-      
-      const reminders = await getReminders();
-      const updatedReminder = reminders.find(r => r.id === id);
-      if (updatedReminder?.enabled) {
-        await scheduleReminderNotification(updatedReminder);
-      }
-      
-      // Update ESP32 display
-      const settings = await getSettings();
-      if (settings.esp32Ip && updatedReminder) {
-        await updateDisplayInfo(settings, updatedReminder);
-      }
-      
+
       toast({
         title: "Reminder updated",
         description: "Your reminder has been updated successfully",
       });
+
+      // Navigate immediately for fast UX
+      navigate('/');
+
+      // Fire-and-forget heavy work: notifications + ESP32
+      (async () => {
+        try {
+          await cancelReminderNotification(id);
+
+          const reminders = await getReminders();
+          const updatedReminder = reminders.find(r => r.id === id);
+          if (updatedReminder?.enabled) {
+            await scheduleReminderNotification(updatedReminder);
+          }
+
+          const settings = await getSettings();
+          if (settings.esp32Ip && updatedReminder) {
+            await updateDisplayInfo(settings, updatedReminder);
+          }
+        } catch (err) {
+          console.error('Background update reminder error:', err);
+        }
+      })();
     } else {
       const reminder: Reminder = {
         id: `reminder_${Date.now()}`,
@@ -92,23 +104,32 @@ const AddReminder = () => {
         enabled: true,
         createdAt: Date.now(),
       };
-      
+
+      // Save locally first
       await addReminder(reminder);
-      await scheduleReminderNotification(reminder);
-      
-      // Update ESP32 display
-      const settings = await getSettings();
-      if (settings.esp32Ip) {
-        await updateDisplayInfo(settings, reminder);
-      }
-      
+
       toast({
         title: "Reminder added",
         description: "Your new reminder has been created",
       });
-    }
 
-    navigate('/');
+      // Navigate immediately
+      navigate('/');
+
+      // Background: notifications + ESP32
+      (async () => {
+        try {
+          await scheduleReminderNotification(reminder);
+
+          const settings = await getSettings();
+          if (settings.esp32Ip) {
+            await updateDisplayInfo(settings, reminder);
+          }
+        } catch (err) {
+          console.error('Background add reminder error:', err);
+        }
+      })();
+    }
   };
 
   const handleDelete = async () => {
@@ -184,21 +205,41 @@ const AddReminder = () => {
             <div className="space-y-2">
               <Label htmlFor="compartmentType" className="flex items-center gap-2">
                 <Box className="h-4 w-4" />
-                Compartment Type
+                Compartment Type (Select Multiple)
               </Label>
               <div className="grid grid-cols-4 gap-2">
                 {['A', 'B', 'C', 'D'].map((type) => (
                   <Button
                     key={type}
                     type="button"
-                    variant={formData.compartmentType === type ? "default" : "outline"}
-                    onClick={() => setFormData({ ...formData, compartmentType: type as 'A' | 'B' | 'C' | 'D' })}
+                    variant={formData.compartmentType.includes(type as 'A' | 'B' | 'C' | 'D') ? "default" : "outline"}
+                    onClick={() => {
+                      const currentCompartments = formData.compartmentType;
+                      const compartment = type as 'A' | 'B' | 'C' | 'D';
+                      
+                      if (currentCompartments.includes(compartment)) {
+                        // Remove compartment if already selected
+                        setFormData({ 
+                          ...formData, 
+                          compartmentType: currentCompartments.filter(c => c !== compartment)
+                        });
+                      } else {
+                        // Add compartment if not selected
+                        setFormData({ 
+                          ...formData, 
+                          compartmentType: [...currentCompartments, compartment]
+                        });
+                      }
+                    }}
                     className="h-12"
                   >
                     {type}
                   </Button>
                 ))}
               </div>
+              {formData.compartmentType.length === 0 && (
+                <p className="text-sm text-muted-foreground">Please select at least one compartment</p>
+              )}
             </div>
 
             <div className="space-y-2">
