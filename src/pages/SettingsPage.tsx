@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Wifi, Settings as SettingsIcon, TestTube } from 'lucide-react';
+import { Wifi, Settings as SettingsIcon, TestTube, Bell } from 'lucide-react';
 import Navigation from '@/components/Navigation';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -7,7 +7,7 @@ import { Label } from '@/components/ui/label';
 import { Card } from '@/components/ui/card';
 import { Switch } from '@/components/ui/switch';
 import { getSettings, saveSettings } from '@/lib/storage';
-import { testConnection, sendCompartmentCommand } from '@/lib/esp32';
+import { testConnection, sendCompartmentCommand, testDisplayMessage } from '@/lib/esp32';
 import { scheduleTestNotification } from '@/lib/notifications';
 import type { AppSettings } from '@/types/reminder';
 import { useToast } from '@/hooks/use-toast';
@@ -22,40 +22,60 @@ const SettingsPage = () => {
   });
   const [testing, setTesting] = useState(false);
   const [testingDisplay, setTestingDisplay] = useState(false);
+  const [testingTftAlert, setTestingTftAlert] = useState(false);
   
-  // Test TFT Display handler - MUST be included
-  const handleTestDisplay = async () => {
+  // Test TFT Display with medicine info
+  const handleTestDisplayMessage = async () => {
     setTestingDisplay(true);
-    const url = `http://${settings.esp32Ip}/update?compartment=1&name=${encodeURIComponent(
-      "Hi from app"
-    )}&dosage=${encodeURIComponent("Test message")}&time=${encodeURIComponent(
-      "--:--"
-    )}`;
-    console.log("Testing TFT display via:", url);
-
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 1500);
     try {
-      await fetch(url, {
-        method: "GET",
-        mode: "no-cors",
-        signal: controller.signal,
-      });
-      clearTimeout(timeoutId);
-      toast({
-        title: "Display test sent",
-        description: 'Look for "Hi from app" in compartment 1 on the TFT screen.',
-      });
+      const success = await testDisplayMessage(settings);
+      if (success) {
+        toast({
+          title: "Display test sent",
+          description: 'Sent test message "Hi from app" to compartment 1 on the TFT screen.',
+        });
+      } else {
+        throw new Error('Failed to send');
+      }
     } catch (error) {
-      clearTimeout(timeoutId);
       console.error("Error testing TFT display:", error);
       toast({
         title: "Display test failed",
-        description: "Could not send message to ESP32 display. Check IP and wiring.",
+        description: "Could not send message to ESP32 display. Check IP and connection.",
         variant: "destructive",
       });
     } finally {
       setTestingDisplay(false);
+    }
+  };
+  
+  // Test TFT Alert with medication reminder
+  const handleTestTftAlert = async () => {
+    setTestingTftAlert(true);
+    try {
+      // Send test alert via compartment trigger
+      const success = await sendCompartmentCommand(settings, 'A', 'ON');
+      if (success) {
+        toast({
+          title: "Alert test sent",
+          description: "Check the TFT display for the alert message and test LED/buzzer in compartment A.",
+        });
+        // Auto turn off after 3 seconds
+        setTimeout(async () => {
+          await sendCompartmentCommand(settings, 'A', 'TAKEN');
+        }, 3000);
+      } else {
+        throw new Error('Failed to send');
+      }
+    } catch (error) {
+      console.error("Error testing TFT alert:", error);
+      toast({
+        title: "Alert test failed",
+        description: "Could not send alert to ESP32. Check IP and connection.",
+        variant: "destructive",
+      });
+    } finally {
+      setTestingTftAlert(false);
     }
   };
   
@@ -179,11 +199,27 @@ const SettingsPage = () => {
             Test TFT Display
           </h3>
           <p className="text-sm text-muted-foreground mb-4">
-            Send a test message to the ESP32 TFT display to confirm connection.
+            Send test messages to the ESP32 TFT display to confirm connection.
           </p>
-          <Button onClick={handleTestDisplay} disabled={testingDisplay}>
-            {testingDisplay ? "Testing..." : "Send Hi to Display"}
-          </Button>
+          
+          <div className="space-y-3">
+            <Button 
+              onClick={handleTestDisplayMessage} 
+              disabled={testingDisplay}
+              className="w-full"
+              variant="outline"
+            >
+              {testingDisplay ? "Testing..." : "Test Display Message"}
+            </Button>
+            
+            <Button 
+              onClick={handleTestTftAlert} 
+              disabled={testingTftAlert}
+              className="w-full"
+            >
+              {testingTftAlert ? "Testing..." : "Test Alert (with LED/Buzzer)"}
+            </Button>
+          </div>
         </Card>
 
         <Card className="p-6">
@@ -223,22 +259,26 @@ const SettingsPage = () => {
 
             <div className="flex items-center justify-between pt-2 border-t border-border">
               <div>
-                <Label>Test Notification</Label>
+                <Label htmlFor="test-notif">Test Notification</Label>
                 <p className="text-xs text-muted-foreground">
-                  Send a test reminder in about 10 seconds to verify timing
+                  Send a test reminder to phone + TFT display in 10 seconds
                 </p>
               </div>
               <Button
+                id="test-notif"
                 size="sm"
                 variant="outline"
                 onClick={async () => {
                   await scheduleTestNotification();
+                  // Also send test alert to TFT display
+                  await handleTestTftAlert();
                   toast({
                     title: "Test scheduled",
-                    description: "You should receive a test notification in about 10 seconds.",
+                    description: "Check your phone and TFT display for the test notification.",
                   });
                 }}
               >
+                <Bell className="h-4 w-4 mr-1" />
                 Send Test
               </Button>
             </div>
