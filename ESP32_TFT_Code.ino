@@ -7,8 +7,7 @@
 #include <WiFi.h>
 #include <WebServer.h>
 #include <ESPmDNS.h>
-#include <Adafruit_GFX.h>
-#include <Adafruit_ILI9341.h>
+#include <TFT_eSPI.h>
 #include <RTClib.h>
 
 // WiFi credentials
@@ -32,9 +31,8 @@ const char* password = "YOUR_WIFI_PASSWORD";
 #define TFT_D6   27
 #define TFT_D7   14
 
-// Initialize TFT display (8-bit parallel mode)
-Adafruit_ILI9341 tft = Adafruit_ILI9341(TFT_CS, TFT_DC, TFT_RST, TFT_WR, TFT_RD, 
-                                       TFT_D0, TFT_D1, TFT_D2, TFT_D3, TFT_D4, TFT_D5, TFT_D6, TFT_D7);
+// Initialize TFT display (8-bit parallel mode via TFT_eSPI)
+TFT_eSPI tft = TFT_eSPI();
 
 // RTC (DS3231)
 RTC_DS3231 rtc;
@@ -120,10 +118,10 @@ void setup() {
   }
   
   // Initialize TFT display
-  tft.begin();
-  tft.setRotation(3); // Landscape mode
-  tft.fillScreen(ILI9341_BLACK);
-  tft.setTextColor(ILI9341_WHITE);
+  tft.init();
+  tft.setRotation(1); // Landscape mode (0=portrait, 1=landscape, 2=inverted portrait, 3=inverted landscape)
+  tft.fillScreen(TFT_BLACK);
+  tft.setTextColor(TFT_WHITE);
   tft.setTextSize(2);
   tft.setCursor(20, 10);
   tft.println("Pillbox Initializing...");
@@ -149,15 +147,15 @@ void setup() {
   tft.print("Connecting to WiFi");
   bool connected = connectWifi();
   
-  tft.fillScreen(ILI9341_BLACK);
+  tft.fillScreen(TFT_BLACK);
   tft.setCursor(20, 10);
   if (connected) {
     Serial.println("WiFi Connected!");
     Serial.print("IP Address: ");
     Serial.println(WiFi.localIP());
-    tft.setTextColor(ILI9341_GREEN);
+    tft.setTextColor(TFT_GREEN);
     tft.println("WiFi Connected!");
-    tft.setTextColor(ILI9341_WHITE);
+    tft.setTextColor(TFT_WHITE);
     tft.setCursor(20, 40);
     tft.print("IP: ");
     tft.println(WiFi.localIP());
@@ -172,9 +170,9 @@ void setup() {
     IPAddress apIp = WiFi.softAPIP();
     Serial.print("AP mode started. SSID: Pillbox-Setup, IP: ");
     Serial.println(apIp);
-    tft.setTextColor(ILI9341_YELLOW);
+    tft.setTextColor(TFT_YELLOW);
     tft.println("STA Failed. AP Ready");
-    tft.setTextColor(ILI9341_WHITE);
+    tft.setTextColor(TFT_WHITE);
     tft.setCursor(20, 40);
     tft.print("AP IP: ");
     tft.println(apIp);
@@ -237,11 +235,11 @@ void loop() {
 }
 
 void displayMedicineList() {
-  tft.fillScreen(ILI9341_BLACK);
+  tft.fillScreen(TFT_BLACK);
   
   // Title
   tft.setTextSize(2);
-  tft.setTextColor(ILI9341_CYAN);
+  tft.setTextColor(TFT_CYAN);
   tft.setCursor(60, 10);
   tft.println("MEDICINE SCHEDULE");
 
@@ -251,14 +249,14 @@ void displayMedicineList() {
      char buf[9];
      snprintf(buf, sizeof(buf), "%02d:%02d:%02d", now.hour(), now.minute(), now.second());
      tft.setTextSize(1);
-     tft.setTextColor(ILI9341_WHITE);
+     tft.setTextColor(TFT_WHITE);
      tft.setCursor(200, 10);
      tft.print("Time ");
      tft.println(buf);
    }
   
   // Draw separator line
-  tft.drawLine(0, 35, 320, 35, ILI9341_WHITE);
+  tft.drawLine(0, 35, 320, 35, TFT_WHITE);
   
   // Display each compartment
   int yPos = 50;
@@ -266,13 +264,13 @@ void displayMedicineList() {
     tft.setTextSize(1);
     
     // Compartment number
-    tft.setTextColor(ILI9341_YELLOW);
+    tft.setTextColor(TFT_YELLOW);
     tft.setCursor(10, yPos);
     tft.print("Compartment ");
     tft.print(i + 1);
     
     // Medicine name
-    tft.setTextColor(medicines[i].active ? ILI9341_GREEN : ILI9341_WHITE);
+    tft.setTextColor(medicines[i].active ? TFT_GREEN : TFT_WHITE);
     tft.setCursor(10, yPos + 15);
     tft.print("Med: ");
     tft.println(medicines[i].name);
@@ -289,7 +287,7 @@ void displayMedicineList() {
     
     // Draw separator
     if (i < 3) {
-      tft.drawLine(0, yPos + 45, 320, yPos + 45, ILI9341_DARKGREY);
+      tft.drawLine(0, yPos + 45, 320, yPos + 45, TFT_DARKGREY);
     }
     
     yPos += 50;
@@ -297,7 +295,7 @@ void displayMedicineList() {
   
   // Display IP at bottom
   tft.setTextSize(1);
-  tft.setTextColor(ILI9341_DARKGREY);
+  tft.setTextColor(TFT_DARKGREY);
   tft.setCursor(10, 220);
   tft.print("IP: ");
   tft.print(WiFi.isConnected() ? WiFi.localIP() : WiFi.softAPIP());
@@ -312,10 +310,10 @@ void displayMedicineList() {
 }
 
 void displayAlert(int compartment) {
-  tft.fillScreen(ILI9341_RED);
+  tft.fillScreen(TFT_RED);
   
   tft.setTextSize(3);
-  tft.setTextColor(ILI9341_WHITE);
+  tft.setTextColor(TFT_WHITE);
   tft.setCursor(40, 40);
   tft.println("TIME TO TAKE");
   
