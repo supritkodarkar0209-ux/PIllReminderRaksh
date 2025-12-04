@@ -9,20 +9,35 @@
 #include <ESPmDNS.h>
 #include <Adafruit_GFX.h>
 #include <Adafruit_ILI9341.h>
+#include <RTClib.h>
 
 // WiFi credentials
 const char* ssid = "YOUR_WIFI_SSID";
 const char* password = "YOUR_WIFI_PASSWORD";
 
-// TFT Display pins (adjust based on your wiring)
-#define TFT_CS   5
-#define TFT_DC   4
-#define TFT_RST  2
-#define TFT_MOSI 23
-#define TFT_CLK  18
+// TFT Display pins (8-bit parallel mode)
+#define TFT_CS   15  // Chip select control pin (library pulls permanently low)
+#define TFT_DC   33  // Data Command control pin - must use a pin in the range 0-31
+#define TFT_RST  32  // Reset pin, toggles on startup
 
-// Initialize TFT display
-Adafruit_ILI9341 tft = Adafruit_ILI9341(TFT_CS, TFT_DC, TFT_RST);
+#define TFT_WR    4  // Write strobe control pin - must use a pin in the range 0-31
+#define TFT_RD    2  // Read strobe control pin
+
+#define TFT_D0   12  // Must use pins in the range 0-31 for the data bus
+#define TFT_D1   13  // so a single register write sets/clears all bits.
+#define TFT_D2   26  // Pins can be randomly assigned, this does not affect
+#define TFT_D3   25  // TFT screen update performance.
+#define TFT_D4   18
+#define TFT_D5   19
+#define TFT_D6   27
+#define TFT_D7   14
+
+// Initialize TFT display (8-bit parallel mode)
+Adafruit_ILI9341 tft = Adafruit_ILI9341(TFT_CS, TFT_DC, TFT_RST, TFT_WR, TFT_RD, 
+                                       TFT_D0, TFT_D1, TFT_D2, TFT_D3, TFT_D4, TFT_D5, TFT_D6, TFT_D7);
+
+// RTC (DS3231)
+RTC_DS3231 rtc;
 
 // LED and Buzzer pins for 4 compartments
 const int ledPins[4] = {12, 13, 14, 15};
@@ -33,7 +48,9 @@ struct MedicineInfo {
   String name;
   String dosage;
   String time;
-  bool active;
+  bool active;          // has a valid schedule
+  bool triggeredToday;  // whether today's alert has fired
+  uint8_t lastTriggerDay;
 };
 
 MedicineInfo medicines[4];
@@ -90,6 +107,17 @@ bool connectWifi(unsigned long timeoutMs = 20000) {
 
 void setup() {
   Serial.begin(115200);
+  delay(1000);
+
+  // Initialize RTC
+  if (!rtc.begin()) {
+    Serial.println("RTC not found. Time-based alerts will be disabled.");
+  } else {
+    if (rtc.lostPower()) {
+      Serial.println("RTC lost power, please set the time manually.");
+      // rtc.adjust(DateTime(F(__DATE__), F(__TIME__))); // Uncomment once to set from compile time
+    }
+  }
   
   // Initialize TFT display
   tft.begin();
@@ -112,6 +140,8 @@ void setup() {
     medicines[i].dosage = "-";
     medicines[i].time = "-";
     medicines[i].active = false;
+    medicines[i].triggeredToday = false;
+    medicines[i].lastTriggerDay = 0;
   }
   
   // Connect to WiFi (with static IP if enabled). Fallback to AP if it fails.
@@ -166,8 +196,44 @@ void setup() {
   displayMedicineList();
 }
 
+void checkScheduledReminders() {
+  if (!rtc.begin()) {
+    return; // RTC not available
+  }
+
+  DateTime now = rtc.now();
+  uint8_t currentDay = now.day();
+
+  char buf[6];
+  snprintf(buf, sizeof(buf), "%02d:%02d", now.hour(), now.minute());
+  String currentTime = String(buf);
+
+  for (int i = 0; i < 4; i++) {
+    if (!medicines[i].active) continue;
+    if (medicines[i].time == "-" || medicines[i].time.length() < 4) continue;
+
+    // Reset daily trigger flag when the day changes
+    if (medicines[i].lastTriggerDay != currentDay) {
+      medicines[i].triggeredToday = false;
+    }
+
+    if (!medicines[i].triggeredToday && medicines[i].time == currentTime) {
+      Serial.print("RTC trigger for compartment ");
+      Serial.println(i + 1);
+
+      digitalWrite(ledPins[i], HIGH);
+      digitalWrite(buzzerPins[i], HIGH);
+      displayAlert(i);
+
+      medicines[i].triggeredToday = true;
+      medicines[i].lastTriggerDay = currentDay;
+    }
+  }
+}
+
 void loop() {
   server.handleClient();
+  checkScheduledReminders();
 }
 
 void displayMedicineList() {
@@ -178,6 +244,18 @@ void displayMedicineList() {
   tft.setTextColor(ILI9341_CYAN);
   tft.setCursor(60, 10);
   tft.println("MEDICINE SCHEDULE");
+
+   // Show current RTC time (if available)
+   if (rtc.begin()) {
+     DateTime now = rtc.now();
+     char buf[9];
+     snprintf(buf, sizeof(buf), "%02d:%02d:%02d", now.hour(), now.minute(), now.second());
+     tft.setTextSize(1);
+     tft.setTextColor(ILI9341_WHITE);
+     tft.setCursor(200, 10);
+     tft.print("Time ");
+     tft.println(buf);
+   }
   
   // Draw separator line
   tft.drawLine(0, 35, 320, 35, ILI9341_WHITE);
@@ -336,6 +414,7 @@ void handleUpdate() {
   medicines[compartment].name = server.arg("name");
   medicines[compartment].dosage = server.hasArg("dosage") ? server.arg("dosage") : "-";
   medicines[compartment].time = server.hasArg("time") ? server.arg("time") : "-";
+  medicines[compartment].active = true; // enable schedule when updated
   
   Serial.println("Updated compartment " + String(compartment + 1));
   Serial.println("Name: " + medicines[compartment].name);
@@ -363,12 +442,22 @@ void handleNotFound() {
  *    - Adafruit GFX Library
  *    - Adafruit ILI9341
  * 
- * 2. Wire your 2.4" TFT display:
- *    TFT_CS   -> GPIO 5
- *    TFT_DC   -> GPIO 4
- *    TFT_RST  -> GPIO 2
- *    TFT_MOSI -> GPIO 23
- *    TFT_CLK  -> GPIO 18
+ * 2. Wire your 2.4" TFT display (8-bit parallel mode):
+ *    Control pins:
+ *      TFT_CS   -> GPIO 15  (Chip Select)
+ *      TFT_DC   -> GPIO 33  (Data Command)
+ *      TFT_RST  -> GPIO 32  (Reset)
+ *      TFT_WR   -> GPIO 4   (Write Strobe)
+ *      TFT_RD   -> GPIO 2   (Read Strobe)
+ *    Data bus (8-bit):
+ *      TFT_D0   -> GPIO 12
+ *      TFT_D1   -> GPIO 13
+ *      TFT_D2   -> GPIO 26
+ *      TFT_D3   -> GPIO 25
+ *      TFT_D4   -> GPIO 18
+ *      TFT_D5   -> GPIO 19
+ *      TFT_D6   -> GPIO 27
+ *      TFT_D7   -> GPIO 14
  *    (Adjust pins in code if your wiring is different)
  * 
  * 3. Update WiFi credentials at the top of the code
@@ -377,3 +466,4 @@ void handleNotFound() {
  * 
  * 5. Enter this IP in the app's Settings page
  */
+               
