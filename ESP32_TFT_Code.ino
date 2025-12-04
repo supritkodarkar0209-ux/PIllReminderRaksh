@@ -38,8 +38,9 @@ TFT_eSPI tft = TFT_eSPI();
 RTC_DS3231 rtc;
 
 // LED and Buzzer pins for 4 compartments
-const int ledPins[4] = {12, 13, 14, 15};
-const int buzzerPins[4] = {16, 17, 25, 26};
+// Note: Avoid GPIO 12-14, 18-19, 25-27 as they are used for TFT data bus
+const int ledPins[4] = {5, 8, 9, 10};
+const int buzzerPins[4] = {1, 3, 6, 7};
 
 // Medicine information structure
 struct MedicineInfo {
@@ -185,6 +186,7 @@ void setup() {
   server.on("/compartment", handleCompartment);
   server.on("/update", handleUpdate);
   server.on("/status", handleStatus);
+  server.on("/sync-time", handleSyncTime);
   server.onNotFound(handleNotFound);
   
   server.begin();
@@ -427,6 +429,53 @@ void handleUpdate() {
 void handleStatus() {
   String json = "{\"status\":\"online\",\"ip\":\"" + WiFi.localIP().toString() + "\"}";
   server.send(200, "application/json", json);
+}
+
+void handleSyncTime() {
+  // Expects: /sync-time?timestamp=UNIX_TIMESTAMP (milliseconds)
+  // Example: /sync-time?timestamp=1733274600000
+  
+  if (!server.hasArg("timestamp")) {
+    server.send(400, "text/plain", "Missing timestamp parameter");
+    return;
+  }
+  
+  uint64_t timestampMs = server.arg("timestamp").toInt();
+  uint32_t timestampSec = timestampMs / 1000;  // Convert ms to seconds
+  
+  if (timestampSec == 0) {
+    server.send(400, "text/plain", "Invalid timestamp");
+    return;
+  }
+  
+  // Sync RTC with provided timestamp
+  if (rtc.begin()) {
+    rtc.adjust(DateTime(timestampSec));
+    Serial.println("RTC synced to timestamp: " + String(timestampSec));
+    
+    // Display confirmation on TFT
+    tft.fillScreen(TFT_BLACK);
+    tft.setTextSize(2);
+    tft.setTextColor(TFT_GREEN);
+    tft.setCursor(40, 100);
+    tft.println("Time Synchronized!");
+    tft.setTextSize(1);
+    tft.setTextColor(TFT_WHITE);
+    tft.setCursor(20, 150);
+    DateTime now = rtc.now();
+    char buf[30];
+    snprintf(buf, sizeof(buf), "%04d-%02d-%02d %02d:%02d:%02d",
+             now.year(), now.month(), now.day(),
+             now.hour(), now.minute(), now.second());
+    tft.println(buf);
+    
+    delay(2000);
+    displayMedicineList();
+    
+    server.send(200, "application/json", "{\"status\":\"time_synced\"}");
+  } else {
+    server.send(500, "text/plain", "RTC not available");
+  }
 }
 
 void handleNotFound() {

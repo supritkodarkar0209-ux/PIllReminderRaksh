@@ -217,3 +217,26 @@ export const testDisplayMessage = async (
   }
 };
 
+export const syncTimeWithEsp32 = async (
+  settings: AppSettings
+): Promise<boolean> => {
+  try {
+    const currentTimestampMs = Date.now();
+    const url = `http://${settings.esp32Ip}/sync-time?timestamp=${currentTimestampMs}`;
+    
+    console.log('Syncing time with ESP32:', url);
+    
+    const response = await fetchWithTimeout(url, {
+      method: 'GET',
+      mode: 'no-cors',
+      timeoutMs: 1500,
+    });
+    
+    console.log('Time sync response:', response.status);
+    return true;
+  } catch (error) {
+    console.error('Error syncing time with ESP32:', error);
+    return false;
+  }
+};
+

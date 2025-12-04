@@ -9,7 +9,7 @@ import { Card } from '@/components/ui/card';
 import TimePickerInput from '@/components/TimePickerInput';
 import { addReminder, updateReminder, getReminders, deleteReminder, getSettings } from '@/lib/storage';
 import { scheduleReminderNotification, cancelReminderNotification } from '@/lib/notifications';
-import { updateDisplayInfo } from '@/lib/esp32';
+import { updateDisplayInfo, syncTimeWithEsp32 } from '@/lib/esp32';
 import type { Reminder } from '@/types/reminder';
 import { useToast } from '@/hooks/use-toast';
 
@@ -90,6 +90,8 @@ const AddReminder = () => {
 
           const settings = await getSettings();
           if (settings.esp32Ip && updatedReminder) {
+            // Sync time first, then update display
+            await syncTimeWithEsp32(settings);
             await updateDisplayInfo(settings, updatedReminder);
           }
         } catch (err) {
@@ -123,6 +125,8 @@ const AddReminder = () => {
 
           const settings = await getSettings();
           if (settings.esp32Ip) {
+            // Sync time first, then update display
+            await syncTimeWithEsp32(settings);
             await updateDisplayInfo(settings, reminder);
           }
         } catch (err) {
