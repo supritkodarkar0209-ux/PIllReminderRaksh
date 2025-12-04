@@ -18,6 +18,7 @@ const char* ssid = "YOUR_WIFI_SSID";
 const char* password = "YOUR_WIFI_PASSWORD";
 
 // TFT SPI pins (change if your wiring differs)
+// Default safe pins used for many ESP32 dev boards
 #define TFT_CS   5
 #define TFT_DC   4
 #define TFT_RST  2
@@ -177,12 +178,10 @@ void setup() {
 
   server.on("/sync-time", [](){
     if (!server.hasArg("timestamp")) { server.send(400, "text/plain", "Missing timestamp"); return; }
-    // timestamp in milliseconds (parse manually to avoid platform-specific functions)
+    // timestamp in milliseconds (parse manually)
     const char* tsStr = server.arg("timestamp").c_str();
     unsigned long long ts = 0ULL;
-    for (const char* p = tsStr; *p >= '0' && *p <= '9'; ++p) {
-      ts = ts * 10ULL + (unsigned long long)(*p - '0');
-    }
+    for (const char* p = tsStr; *p >= '0' && *p <= '9'; ++p) ts = ts * 10ULL + (unsigned long long)(*p - '0');
     if (ts == 0ULL) { server.send(400, "text/plain", "Invalid timestamp"); return; }
     uint32_t seconds = (uint32_t)(ts / 1000ULL);
     if (!rtc.begin()) { server.send(500, "text/plain", "RTC not available"); return; }
