@@ -15,4 +15,14 @@ export default defineConfig(({ mode }) => ({
       "@": path.resolve(__dirname, "./src"),
     },
   },
+  build: {
+    rollupOptions: {
+      output: {
+        manualChunks: undefined, // Disable automatic chunking to ensure all code is included
+      },
+      treeshake: {
+        moduleSideEffects: 'no-external', // Preserve side effects to prevent tree-shaking issues
+      },
+    },
+  },
 }));

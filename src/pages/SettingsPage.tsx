@@ -21,6 +21,45 @@ const SettingsPage = () => {
     vibration: true,
   });
   const [testing, setTesting] = useState(false);
+  const [testingDisplay, setTestingDisplay] = useState(false);
+  
+  // Test TFT Display handler - MUST be included
+  const handleTestDisplay = async () => {
+    setTestingDisplay(true);
+    const url = `http://${settings.esp32Ip}/update?compartment=1&name=${encodeURIComponent(
+      "Hi from app"
+    )}&dosage=${encodeURIComponent("Test message")}&time=${encodeURIComponent(
+      "--:--"
+    )}`;
+    console.log("Testing TFT display via:", url);
+
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 1500);
+    try {
+      await fetch(url, {
+        method: "GET",
+        mode: "no-cors",
+        signal: controller.signal,
+      });
+      clearTimeout(timeoutId);
+      toast({
+        title: "Display test sent",
+        description: 'Look for "Hi from app" in compartment 1 on the TFT screen.',
+      });
+    } catch (error) {
+      clearTimeout(timeoutId);
+      console.error("Error testing TFT display:", error);
+      toast({
+        title: "Display test failed",
+        description: "Could not send message to ESP32 display. Check IP and wiring.",
+        variant: "destructive",
+      });
+    } finally {
+      setTestingDisplay(false);
+    }
+  };
+  
+  
 
   useEffect(() => {
     loadSettings();
@@ -132,6 +171,19 @@ const SettingsPage = () => {
               </div>
             </div>
           </div>
+        </Card>
+
+        <Card className="p-6">
+          <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
+            <Wifi className="h-5 w-5" />
+            Test TFT Display
+          </h3>
+          <p className="text-sm text-muted-foreground mb-4">
+            Send a test message to the ESP32 TFT display to confirm connection.
+          </p>
+          <Button onClick={handleTestDisplay} disabled={testingDisplay}>
+            {testingDisplay ? "Testing..." : "Send Hi to Display"}
+          </Button>
         </Card>
 
         <Card className="p-6">
