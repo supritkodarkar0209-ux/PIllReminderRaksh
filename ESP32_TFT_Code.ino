@@ -12,6 +12,7 @@
 #include <Adafruit_ILI9341.h>
 #include <Wire.h>
 #include <RTClib.h>
+#include <time.h>
 
 // WiFi credentials - set these before uploading
 const char* ssid = "YOUR_WIFI_SSID";
@@ -25,6 +26,7 @@ const char* password = "YOUR_WIFI_PASSWORD";
 
 Adafruit_ILI9341 tft = Adafruit_ILI9341(TFT_CS, TFT_DC, TFT_RST);
 RTC_DS3231 rtc;
+bool rtcAvailable = false;
 WebServer server(80);
 
 // Hardware pins
@@ -45,6 +47,8 @@ MedicineInfo medicines[4];
 void displayMedicineList();
 void displayAlert(int compartment);
 void checkScheduledReminders();
+DateTime getCurrentDateTime();
+bool parseHHMM(const String &s, int &hh, int &mm);
 
 // Utility: send JSON status
 void sendJsonStatus(const char* status) {
@@ -82,7 +86,8 @@ void setup() {
 
   // RTC
   Wire.begin();
-  if (!rtc.begin()) {
+  rtcAvailable = rtc.begin();
+  if (!rtcAvailable) {
     Serial.println("RTC not found");
     tft.setCursor(10, 40);
     tft.setTextSize(1);
@@ -114,6 +119,11 @@ void setup() {
     tft.setTextColor(ILI9341_WHITE);
     tft.setCursor(10, 40);
     tft.print("IP: "); tft.println(WiFi.localIP());
+    // configure NTP as a fallback if RTC isn't available
+    if (!rtcAvailable) {
+      configTime(0, 0, "pool.ntp.org", "time.google.com");
+      Serial.println("NTP configured as fallback");
+    }
   } else {
     Serial.println("WiFi failed - starting AP: Pillbox-Setup");
     WiFi.mode(WIFI_AP);
@@ -184,7 +194,7 @@ void setup() {
     for (const char* p = tsStr; *p >= '0' && *p <= '9'; ++p) ts = ts * 10ULL + (unsigned long long)(*p - '0');
     if (ts == 0ULL) { server.send(400, "text/plain", "Invalid timestamp"); return; }
     uint32_t seconds = (uint32_t)(ts / 1000ULL);
-    if (!rtc.begin()) { server.send(500, "text/plain", "RTC not available"); return; }
+    if (!rtcAvailable) { server.send(500, "text/plain", "RTC not available"); return; }
     rtc.adjust(DateTime(seconds));
     displayMedicineList();
     server.send(200, "application/json", "{\"status\":\"time_synced\"}");
@@ -205,19 +215,26 @@ void loop() {
 }
 
 void checkScheduledReminders() {
-  if (!rtc.begin()) return;
-  DateTime now = rtc.now();
+  DateTime now = getCurrentDateTime();
   uint8_t day = now.day();
-  char buf[6];
-  snprintf(buf, sizeof(buf), "%02d:%02d", now.hour(), now.minute());
-  String currentTime = String(buf);
+  int nowH = now.hour();
+  int nowM = now.minute();
 
   for (int i = 0; i < 4; i++) {
     if (!medicines[i].active) continue;
     if (medicines[i].time == "-" || medicines[i].time.length() < 4) continue;
-    if (medicines[i].lastTriggerDay != day) medicines[i].triggeredToday = false;
-    if (!medicines[i].triggeredToday && medicines[i].time == currentTime) {
-      Serial.print("RTC trigger compartment "); Serial.println(i + 1);
+
+    if (medicines[i].lastTriggerDay != day) {
+      medicines[i].triggeredToday = false;
+    }
+
+    if (medicines[i].triggeredToday) continue;
+
+    int h = 0, m = 0;
+    if (!parseHHMM(medicines[i].time, h, m)) continue;
+
+    if (h == nowH && m == nowM) {
+      Serial.print("Triggering compartment "); Serial.println(i + 1);
       digitalWrite(ledPins[i], HIGH);
       digitalWrite(buzzerPins[i], HIGH);
       displayAlert(i);
@@ -225,6 +242,26 @@ void checkScheduledReminders() {
       medicines[i].lastTriggerDay = day;
     }
   }
+}
+
+DateTime getCurrentDateTime() {
+  if (rtcAvailable) {
+    return rtc.now();
+  }
+  // Fallback to system/NTP time
+  time_t nowSec = time(nullptr);
+  return DateTime((uint32_t)nowSec);
+}
+
+bool parseHHMM(const String &s, int &hh, int &mm) {
+  String t = s;
+  t.trim();
+  int c = t.indexOf(':');
+  if (c < 0) return false;
+  hh = t.substring(0, c).toInt();
+  mm = t.substring(c + 1).toInt();
+  if (hh < 0 || hh > 23 || mm < 0 || mm > 59) return false;
+  return true;
 }
 
 void displayMedicineList() {
